@@ -73,7 +73,7 @@ CREATE TABLE `livestream_viewers_history` (
   `created_at` BIGINT NOT NULL,
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
-CREATE INDEX livestream_viewers_history_idx ON livestream_viewers_history(`user_id`, `livestream_id`);
+-- CREATE INDEX livestream_viewers_history_idx ON livestream_viewers_history(`user_id`, `livestream_id`);
 
 -- ライブ配信に対するライブコメント
 CREATE TABLE `livecomments` (

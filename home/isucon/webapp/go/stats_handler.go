@@ -232,13 +232,17 @@ func getLivestreamStatisticsHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get livestreams: "+err.Error())
 	}
 
+	// ランク算出
+	// var ranking LivestreamRanking
+
 	// ライブストリームのデータを一度に取得するクエリ
 	const query = `
+		SET @rank=0;
 		SELECT
 			l.id,
 			COALESCE(SUM(r.count), 0) as reactions,
 			COALESCE(SUM(lc.tip), 0) as totalTips,
-			RANK() OVER (ORDER BY COALESCE(SUM(r.count), 0) + COALESCE(SUM(lc.tip), 0) DESC) as rank
+			@rank:=@rank+1 as rank
 		FROM
 			livestreams l
 		LEFT JOIN
@@ -247,6 +251,8 @@ func getLivestreamStatisticsHandler(c echo.Context) error {
 			(SELECT livestream_id, SUM(tip) as tip FROM livecomments GROUP BY livestream_id) lc ON l.id = lc.livestream_id
 		GROUP BY
 			l.id
+		ORDER BY
+			reactions + totalTips DESC
 		`
 
 	var results []struct {

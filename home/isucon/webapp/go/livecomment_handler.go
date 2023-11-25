@@ -364,14 +364,14 @@ func moderateHandler(c echo.Context) error {
 	}
 
 	query := `
-	DELETE FROM livecomments
+	DELETE lc FROM livecomments lc
 	WHERE livestream_id = ? AND EXISTS (
 		SELECT 1
-		FROM ng_words
-		WHERE livestream_id = ? AND comment LIKE CONCAT('%', word, '%')
+		FROM ng_words ng
+		WHERE lc.livestream_id = ng.livestream_id AND lc.comment LIKE CONCAT('%', ng.word, '%')
 	)
 	`
-	if _, err := tx.ExecContext(ctx, query, livestreamID, livestreamID); err != nil {
+	if _, err := tx.ExecContext(ctx, query, livestreamID); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to delete old livecomments that hit spams: "+err.Error())
 	}
 

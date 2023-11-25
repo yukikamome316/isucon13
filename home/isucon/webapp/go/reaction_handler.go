@@ -153,10 +153,8 @@ func postReactionHandler(c echo.Context) error {
 
 func fillReactionsResponse(ctx context.Context, tx *sqlx.Tx, reactionModels []ReactionModel) ([]Reaction, error) {
 	userIDs := make([]int64, len(reactionModels))
-	livestreamIDs := make([]int64, len(reactionModels))
 	for i, reactionModel := range reactionModels {
 		userIDs[i] = reactionModel.UserID
-		livestreamIDs[i] = reactionModel.LivestreamID
 	}
 
 	query := "SELECT * FROM users WHERE id IN (?)"
@@ -169,24 +167,29 @@ func fillReactionsResponse(ctx context.Context, tx *sqlx.Tx, reactionModels []Re
 		return nil, err
 	}
 
-	query = "SELECT * FROM livestreams WHERE id IN (?)"
-	query, args, err = sqlx.In(query, livestreamIDs)
-	if err != nil {
-		return nil, err
+	userMap := make(map[int64]UserModel, len(userModels))
+	for _, userModel := range userModels {
+		userMap[userModel.ID] = userModel
 	}
-	livestreamModels := []LivestreamModel{}
-	if err := tx.SelectContext(ctx, &livestreamModels, tx.Rebind(query), args...); err != nil {
+
+	livestreamModel := LivestreamModel{}
+	if len(reactionModels) > 0 {
+		query = "SELECT * FROM livestreams WHERE id = ?"
+		if err := tx.GetContext(ctx, &livestreamModel, tx.Rebind(query), reactionModels[0].LivestreamID); err != nil {
+			return nil, err
+		}
+	}
+
+	livestream, err := fillLivestreamResponse(ctx, tx, livestreamModel)
+	if err != nil {
 		return nil, err
 	}
 
 	reactions := make([]Reaction, len(reactionModels))
-	for i, reactionModel := range reactionModels {
-		user, err := fillUserResponse(ctx, tx, userModels[i])
-		if err != nil {
-			return nil, err
-		}
 
-		livestream, err := fillLivestreamResponse(ctx, tx, livestreamModels[i])
+	for i, reactionModel := range reactionModels {
+		userModel := userMap[reactionModel.UserID]
+		user, err := fillUserResponse(ctx, tx, userModel)
 		if err != nil {
 			return nil, err
 		}

@@ -232,27 +232,46 @@ func getLivestreamStatisticsHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get livestreams: "+err.Error())
 	}
 
-	// ランク算出
+	// // ランク算出
 	var ranking LivestreamRanking
-	for _, livestream := range livestreams {
-		var reactions int64
-		if err := tx.GetContext(ctx, &reactions, "SELECT COUNT(*) FROM livestreams l INNER JOIN reactions r ON l.id = r.livestream_id WHERE l.id = ?", livestream.ID); err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return echo.NewHTTPError(http.StatusInternalServerError, "failed to count reactions: "+err.Error())
-		}
 
-		var totalTips int64
-		if err := tx.GetContext(ctx, &totalTips, "SELECT IFNULL(SUM(l2.tip), 0) FROM livestreams l INNER JOIN livecomments l2 ON l.id = l2.livestream_id WHERE l.id = ?", livestream.ID); err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return echo.NewHTTPError(http.StatusInternalServerError, "failed to count tips: "+err.Error())
-		}
+	// ライブストリームのデータを一度に取得するクエリ
+	const query = `
+		SELECT
+			l.id,
+			COALESCE(SUM(r.count), 0) as reactions,
+			COALESCE(SUM(lc.tip), 0) as totalTips
+		FROM
+			livestreams l
+		LEFT JOIN
+			(SELECT livestream_id, COUNT(*) as count FROM reactions GROUP BY livestream_id) r ON l.id = r.livestream_id
+		LEFT JOIN
+			(SELECT livestream_id, SUM(tip) as tip FROM livecomments GROUP BY livestream_id) lc ON l.id = lc.livestream_id
+		GROUP BY
+			l.id
+		`
 
-		score := reactions + totalTips
+	var results []struct {
+		LivestreamID int64 `db:"id"`
+		Reactions    int64 `db:"reactions"`
+		TotalTips    int64 `db:"totalTips"`
+	}
+
+	if err := tx.SelectContext(ctx, &results, query); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get livestreams data: "+err.Error())
+	}
+
+	// スコアの計算とランキングの作成
+	for _, result := range results {
+		score := result.Reactions + result.TotalTips
 		ranking = append(ranking, LivestreamRankingEntry{
-			LivestreamID: livestream.ID,
+			LivestreamID: result.LivestreamID,
 			Score:        score,
 		})
 	}
 	sort.Sort(ranking)
 
+	// ランクの計算
 	var rank int64 = 1
 	for i := len(ranking) - 1; i >= 0; i-- {
 		entry := ranking[i]

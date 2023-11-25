@@ -149,13 +149,18 @@ func reserveLivestreamHandler(c echo.Context) error {
 	livestreamModel.ID = livestreamID
 
 	// タグ追加
-	for _, tagID := range req.Tags {
-		if _, err := tx.NamedExecContext(ctx, "INSERT INTO livestream_tags (livestream_id, tag_id) VALUES (:livestream_id, :tag_id)", &LivestreamTagModel{
-			LivestreamID: livestreamID,
-			TagID:        tagID,
-		}); err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "failed to insert livestream tag: "+err.Error())
-		}
+	// for _, tagID := range req.Tags {
+	// 	if _, err := tx.NamedExecContext(ctx, "INSERT INTO livestream_tags (livestream_id, tag_id) VALUES (:livestream_id, :tag_id)", &LivestreamTagModel{
+	// 		LivestreamID: livestreamID,
+	// 		TagID:        tagID,
+	// 	}); err != nil {
+	// 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to insert livestream tag: "+err.Error())
+	// 	}
+	// }
+
+	tagsSlices := make([]interface{}, len(req.Tags))
+	if _, err := tx.NamedExecContext(ctx, "INSERT INTO livestream_tags (livecomment_id, tag_id) VALUES (:livecomment_id, :tag_id)", tagsSlices); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to insert livecomment tag: "+err.Error())
 	}
 
 	livestream, err := fillLivestreamResponse(ctx, tx, *livestreamModel)

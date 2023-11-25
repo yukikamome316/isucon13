@@ -159,6 +159,13 @@ func reserveLivestreamHandler(c echo.Context) error {
 	// }
 
 	tagsSlices := make([]interface{}, len(req.Tags))
+	for i, tag := range req.Tags {
+		tagsSlices[i] = LivestreamTagModel{
+			LivestreamID: livestreamID,
+			TagID:        tag,
+		}
+	}
+	// bulk insert
 	if _, err := tx.NamedExecContext(ctx, "INSERT INTO livestream_tags (livecomment_id, tag_id) VALUES (:livecomment_id, :tag_id)", tagsSlices); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to insert livecomment tag: "+err.Error())
 	}

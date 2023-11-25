@@ -112,7 +112,9 @@ func getIconHandler(c echo.Context) error {
 			return echo.NewHTTPError(http.StatusInternalServerError, "failed to get user icon: "+err.Error())
 		}
 	}
-
+	
+	responseHeader := c.Response().Header()
+	responseHeader.Set("Cache-Control", "public, max-age=86400") // 1 day
 	return c.Blob(http.StatusOK, "image/jpeg", image)
 }
 
@@ -414,7 +416,7 @@ func fillUserResponse(ctx context.Context, tx *sqlx.Tx, userModel UserModel) (Us
 			return User{}, err
 		}
 	}
-	iconHash := sha256.Sum256(image)
+	iconHash := sha256.Sum256(image) 
 
 	user := User{
 		ID:          userModel.ID,

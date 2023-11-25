@@ -232,47 +232,29 @@ func getLivestreamStatisticsHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get livestreams: "+err.Error())
 	}
 
-	// ランク算出
-	// var ranking LivestreamRanking
-
-	// ライブストリームのデータを一度に取得するクエリ
-	const query = `
-		SET @rank=0;
-		SELECT
-			l.id,
-			COALESCE(SUM(r.count), 0) as reactions,
-			COALESCE(SUM(lc.tip), 0) as totalTips,
-			@rank:=@rank+1 as rank
-		FROM
-			livestreams l
-		LEFT JOIN
-			(SELECT livestream_id, COUNT(*) as count FROM reactions GROUP BY livestream_id) r ON l.id = r.livestream_id
-		LEFT JOIN
-			(SELECT livestream_id, SUM(tip) as tip FROM livecomments GROUP BY livestream_id) lc ON l.id = lc.livestream_id
-		GROUP BY
-			l.id
-		ORDER BY
-			reactions + totalTips DESC
-		`
-
-	var results []struct {
-		LivestreamID int64 `db:"id"`
-		Reactions    int64 `db:"reactions"`
-		TotalTips    int64 `db:"totalTips"`
-		Rank         int64 `db:"rank"`
-	}
-
-	if err := tx.SelectContext(ctx, &results, query); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get livestreams data: "+err.Error())
-	}
-
-	// ランクの取得
+	// ランクを算出
 	var rank int64
-	for _, result := range results {
-		if result.LivestreamID == livestreamID {
-			rank = result.Rank
-			break
-		}
+	query := `
+		SELECT COUNT(*) + 1 AS Rank
+		FROM (
+			SELECT
+				l.id,
+				(SELECT COUNT(*) FROM reactions r WHERE l.id = r.livestream_id) +
+				(SELECT IFNULL(SUM(lc.tip), 0) FROM livecomments lc WHERE l.id = lc.livestream_id) AS Score
+			FROM
+				livestreams l
+		) AS subquery
+		WHERE Score > (
+			SELECT
+				(SELECT COUNT(*) FROM reactions r WHERE l.id = r.livestream_id) +
+				(SELECT IFNULL(SUM(lc.tip), 0) FROM livecomments lc WHERE l.id = lc.livestream_id)
+			FROM
+				livestreams l
+			WHERE l.id = ?
+		)
+	`
+	if err := tx.GetContext(ctx, &rank, query, livestreamID); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to calculate rank: "+err.Error())
 	}
 
 	// 視聴者数算出

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -189,16 +188,19 @@ func postLivecommentHandler(c echo.Context) error {
 	defer tx.Rollback()
 
 	//スパム判定
-	var ngwords []string
-	if err := tx.SelectContext(ctx, &ngwords, "SELECT word FROM ng_words WHERE livestream_id = ?", livestreamID); err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get NG words: "+err.Error())
+	query := `
+	SELECT COUNT(*)
+	FROM ng_words
+	WHERE livestream_id = ? AND ? LIKE CONCAT('%', word, '%')
+	`
+	var hitSpam int
+	if err := tx.GetContext(ctx, &hitSpam, query, livestreamID, req.Comment); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get hitspam: "+err.Error())
 	}
 
-	for _, ngword := range ngwords {
-		if strings.Contains(req.Comment, ngword) {
-			c.Logger().Infof("[hitSpam=1] comment = %s", req.Comment)
-			return echo.NewHTTPError(http.StatusBadRequest, "このコメントがスパム判定されました")
-		}
+	if hitSpam > 0 {
+		c.Logger().Infof("[hitSpam=%d] comment = %s", hitSpam, req.Comment)
+		return echo.NewHTTPError(http.StatusBadRequest, "このコメントがスパム判定されました")
 	}
 
 	now := time.Now().Unix()

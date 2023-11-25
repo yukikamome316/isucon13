@@ -75,6 +75,12 @@ func getReactionsHandler(c echo.Context) error {
 
 	// 	reactions[i] = reaction
 	// }
+
+	// reactionModelsが空の場合は空配列を返す
+	if len(reactionModels) == 0 {
+		return c.JSON(http.StatusOK, []Reaction{})
+	}
+
 	reactions, err := fillReactionsResponse(ctx, tx, reactionModels)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to fill reactions: "+err.Error())

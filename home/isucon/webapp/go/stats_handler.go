@@ -232,15 +232,13 @@ func getLivestreamStatisticsHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get livestreams: "+err.Error())
 	}
 
-	// // ランク算出
-	var ranking LivestreamRanking
-
 	// ライブストリームのデータを一度に取得するクエリ
 	const query = `
 		SELECT
 			l.id,
 			COALESCE(SUM(r.count), 0) as reactions,
-			COALESCE(SUM(lc.tip), 0) as totalTips
+			COALESCE(SUM(lc.tip), 0) as totalTips,
+			RANK() OVER (ORDER BY COALESCE(SUM(r.count), 0) + COALESCE(SUM(lc.tip), 0) DESC) as rank
 		FROM
 			livestreams l
 		LEFT JOIN
@@ -255,30 +253,20 @@ func getLivestreamStatisticsHandler(c echo.Context) error {
 		LivestreamID int64 `db:"id"`
 		Reactions    int64 `db:"reactions"`
 		TotalTips    int64 `db:"totalTips"`
+		Rank         int64 `db:"rank"`
 	}
 
 	if err := tx.SelectContext(ctx, &results, query); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get livestreams data: "+err.Error())
 	}
 
-	// スコアの計算とランキングの作成
+	// ランクの取得
+	var rank int64
 	for _, result := range results {
-		score := result.Reactions + result.TotalTips
-		ranking = append(ranking, LivestreamRankingEntry{
-			LivestreamID: result.LivestreamID,
-			Score:        score,
-		})
-	}
-	sort.Sort(ranking)
-
-	// ランクの計算
-	var rank int64 = 1
-	for i := len(ranking) - 1; i >= 0; i-- {
-		entry := ranking[i]
-		if entry.LivestreamID == livestreamID {
+		if result.LivestreamID == livestreamID {
+			rank = result.Rank
 			break
 		}
-		rank++
 	}
 
 	// 視聴者数算出

@@ -232,53 +232,29 @@ func getLivestreamStatisticsHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get livestreams: "+err.Error())
 	}
 
-	// // ランク算出
-	var ranking LivestreamRanking
-
-	// ライブストリームのデータを一度に取得するクエリ
-	const query = `
-		SELECT
-			l.id,
-			COALESCE(SUM(r.count), 0) as reactions,
-			COALESCE(SUM(lc.tip), 0) as totalTips
-		FROM
-			livestreams l
-		LEFT JOIN
-			(SELECT livestream_id, COUNT(*) as count FROM reactions GROUP BY livestream_id) r ON l.id = r.livestream_id
-		LEFT JOIN
-			(SELECT livestream_id, SUM(tip) as tip FROM livecomments GROUP BY livestream_id) lc ON l.id = lc.livestream_id
-		GROUP BY
-			l.id
-		`
-
-	var results []struct {
-		LivestreamID int64 `db:"id"`
-		Reactions    int64 `db:"reactions"`
-		TotalTips    int64 `db:"totalTips"`
-	}
-
-	if err := tx.SelectContext(ctx, &results, query); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get livestreams data: "+err.Error())
-	}
-
-	// スコアの計算とランキングの作成
-	for _, result := range results {
-		score := result.Reactions + result.TotalTips
-		ranking = append(ranking, LivestreamRankingEntry{
-			LivestreamID: result.LivestreamID,
-			Score:        score,
-		})
-	}
-	sort.Sort(ranking)
-
-	// ランクの計算
-	var rank int64 = 1
-	for i := len(ranking) - 1; i >= 0; i-- {
-		entry := ranking[i]
-		if entry.LivestreamID == livestreamID {
-			break
-		}
-		rank++
+	// ランクを算出
+	var rank int64
+	query := `
+		SELECT COUNT(*) + 1 AS Ranking
+		FROM (
+			SELECT
+				l.id,
+				(SELECT COUNT(*) FROM reactions r WHERE l.id = r.livestream_id) +
+				(SELECT IFNULL(SUM(lc.tip), 0) FROM livecomments lc WHERE l.id = lc.livestream_id) AS Score
+			FROM
+				livestreams l
+		) AS subquery
+		WHERE Score > (
+			SELECT
+				(SELECT COUNT(*) FROM reactions r WHERE l.id = r.livestream_id) +
+				(SELECT IFNULL(SUM(lc.tip), 0) FROM livecomments lc WHERE l.id = lc.livestream_id)
+			FROM
+				livestreams l
+			WHERE l.id = ?
+		)
+	`
+	if err := tx.GetContext(ctx, &rank, query, livestreamID); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to calculate rank: "+err.Error())
 	}
 
 	// 視聴者数算出

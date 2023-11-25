@@ -17,6 +17,7 @@ CREATE TABLE `icons` (
   `image` LONGBLOB NOT NULL,
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+CREATE INDEX icons_idx ON icons(`user_id`);
 
 -- ユーザごとのカスタムテーマ
 CREATE TABLE `themes` (
@@ -25,6 +26,7 @@ CREATE TABLE `themes` (
   `dark_mode` BOOLEAN NOT NULL,
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+CREATE INDEX themes_idx ON themes(`user_id`);
 
 -- ライブ配信
 CREATE TABLE `livestreams` (
@@ -38,6 +40,7 @@ CREATE TABLE `livestreams` (
   `end_at` BIGINT NOT NULL,
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+CREATE INDEX livestreams_idx ON livestreams(`user_id`);
 
 -- ライブ配信予約枠
 CREATE TABLE `reservation_slots` (
@@ -60,6 +63,7 @@ CREATE TABLE `livestream_tags` (
   `livestream_id` BIGINT NOT NULL,
   `tag_id` BIGINT NOT NULL
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+CREATE INDEX livestream_tags_idx ON livestream_tags(`livestream_id`, `tag_id`);
 
 -- ライブ配信視聴履歴
 CREATE TABLE `livestream_viewers_history` (
@@ -69,6 +73,7 @@ CREATE TABLE `livestream_viewers_history` (
   `created_at` BIGINT NOT NULL,
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+CREATE INDEX livestream_viewers_history_idx ON livestream_viewers_history(`user_id`, `livestream_id`);
 
 -- ライブ配信に対するライブコメント
 CREATE TABLE `livecomments` (
@@ -80,6 +85,7 @@ CREATE TABLE `livecomments` (
   `created_at` BIGINT NOT NULL,
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+CREATE INDEX livecomment_idx ON livecomments(`user_id`, `livestream_id`);
 
 -- ユーザからのライブコメントのスパム報告
 CREATE TABLE `livecomment_reports` (
@@ -90,6 +96,7 @@ CREATE TABLE `livecomment_reports` (
   `created_at` BIGINT NOT NULL,
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+CREATE INDEX livecomment_report_idx ON livecomment_reports(`user_id`, `livestream_id`, `livecomment_id`);
 
 -- 配信者からのNGワード登録
 CREATE TABLE `ng_words` (
@@ -100,7 +107,7 @@ CREATE TABLE `ng_words` (
   `created_at` BIGINT NOT NULL,
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
-CREATE INDEX ng_words_word ON ng_words(`word`);
+CREATE INDEX ng_word_idx ON ng_words(`word`, `user_id`, `livestream_id`);
 
 -- ライブ配信に対するリアクション
 CREATE TABLE `reactions` (
@@ -112,3 +119,4 @@ CREATE TABLE `reactions` (
   `created_at` BIGINT NOT NULL,
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+CREATE INDEX reactions_idx ON reactions(`emoji_name`, `user_id`, `livestream_id`);

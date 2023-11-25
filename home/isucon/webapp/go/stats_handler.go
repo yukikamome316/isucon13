@@ -235,7 +235,7 @@ func getLivestreamStatisticsHandler(c echo.Context) error {
 	// ランクを算出
 	var rank int64
 	query := `
-		SELECT COUNT(*) + 1 AS Rank
+		SELECT COUNT(*) + 1 AS Ranking
 		FROM (
 			SELECT
 				l.id,

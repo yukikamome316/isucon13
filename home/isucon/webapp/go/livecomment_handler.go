@@ -103,13 +103,36 @@ func getLivecommentsHandler(c echo.Context) error {
 	}
 
 	livecomments := make([]Livecomment, len(livecommentModels))
-	for i := range livecommentModels {
-		livecomment, err := fillLivecommentResponse(ctx, tx, livecommentModels[i])
-		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "failed to fil livecomments: "+err.Error())
-		}
+	// ユーザーとライブストリームのIDを集める
+	userIDs := []int{}
+	livestreamIDs := []int{}
+	for _, livecomment := range livecomments {
+		userIDs = append(userIDs, int(livecomment.User.ID))
+		livestreamIDs = append(livestreamIDs, int(livecomment.Livestream.ID))
+	}
 
-		livecomments[i] = livecomment
+	// ユーザーとライブストリームのデータを一度のクエリで取得
+	users := map[int]User{}
+	livestreams := map[int]Livestream{}
+	err = tx.SelectContext(ctx, &users, "SELECT * FROM users WHERE id IN (?)", userIDs)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get users: "+err.Error())
+	}
+	err = tx.GetContext(ctx, &livestreams, "SELECT * FROM livestreams WHERE id IN (?)", livestreamIDs)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get livestreams: "+err.Error())
+	}
+
+	// ユーザーとライブストリームのデータを埋め込む
+	for i := range livecomments {
+		livecomments[i] = Livecomment{
+			ID:         livecommentModels[i].ID,
+			User:       users[int(livecommentModels[i].UserID)],
+			Livestream: livestreams[int(livecommentModels[i].LivestreamID)],
+			Comment:    livecommentModels[i].Comment,
+			Tip:        livecommentModels[i].Tip,
+			CreatedAt:  livecommentModels[i].CreatedAt,
+		}
 	}
 
 	if err := tx.Commit(); err != nil {

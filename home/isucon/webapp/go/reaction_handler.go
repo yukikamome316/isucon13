@@ -167,6 +167,11 @@ func fillReactionsResponse(ctx context.Context, tx *sqlx.Tx, reactionModels []Re
 		return nil, err
 	}
 
+	userMap := make(map[int64]UserModel, len(userModels))
+	for _, userModel := range userModels {
+		userMap[userModel.ID] = userModel
+	}
+
 	livestreamModel := LivestreamModel{}
 	if len(reactionModels) > 0 {
 		query = "SELECT * FROM livestreams WHERE id = ?"
@@ -181,8 +186,10 @@ func fillReactionsResponse(ctx context.Context, tx *sqlx.Tx, reactionModels []Re
 	}
 
 	reactions := make([]Reaction, len(reactionModels))
+
 	for i, reactionModel := range reactionModels {
-		user, err := fillUserResponse(ctx, tx, userModels[i])
+		userModel := userMap[reactionModel.UserID]
+		user, err := fillUserResponse(ctx, tx, userModel)
 		if err != nil {
 			return nil, err
 		}
